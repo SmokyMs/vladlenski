@@ -57,7 +57,7 @@ The project is expected to evolve through the following phases:
 2. Containerization
 3. Continuous Integration & Delivery
 4. AWS infrastructure with Terraform
-5. Backend services
+5. Backend services & APIs
 6. Monitoring & Security
 7. Kubernetes orchestration
 
