@@ -8,7 +8,7 @@ The project is developed incrementally, with each phase introducing a focused en
 
 ## Current status
 
-The project is currently in **Phase 1 — Frontend Foundation**. A React frontend provides the initial workload used to build and evolve the platform.
+The project is currently in **Phase 2 - Containerization**. 
 
 ## Frontend stack
 
