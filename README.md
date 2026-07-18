@@ -1,22 +1,64 @@
 # vladlenski
 
-Cloud Engineering Portfolio
+## Project overview
 
-This repository documents my journey from a simple static website to a production-style cloud platform.
+This repository is a long-term portfolio project focused on Cloud Engineering, Platform Engineering, and DevOps. The website serves as the first workload, while the primary focus is the cloud infrastructure, delivery pipeline, operational practices, documentation, and engineering decisions that support it.
 
-Rather than building everything at once, the project evolves incrementally as I learn and apply modern cloud engineering practices.
+The project is developed incrementally, with each phase introducing a focused engineering capability.
 
-## Planned roadmap
+## Current status
 
-- Static React website
-- Docker
-- GitHub Actions
-- AWS deployment
-- Terraform
-- FastAPI
-- PostgreSQL
-- Monitoring
-- Security
-- Kubernetes
+The project is currently in **Phase 1 — Frontend Foundation**. A React frontend provides the initial workload used to build and evolve the platform.
 
-Each stage focuses on one new engineering capability and documents the reasoning behind the implementation.
+## Frontend stack
+
+- React
+- TypeScript
+- Vite
+- React Router
+
+ESLint is used for code validation.
+
+## Running locally
+
+From the repository root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+To validate the frontend:
+
+```bash
+npm run build
+npm run lint
+```
+
+## Repository structure
+
+```text
+.
+├── frontend/                  # Frontend application
+│   ├── public/                # Static assets
+│   └── src/
+│       ├── components/        # Reusable UI components
+│       └── pages/             # Routed page components
+├── AGENTS.md                  # Repository contribution instructions
+└── README.md                  # Project overview and roadmap
+```
+
+## Planned phases
+
+The project is expected to evolve through the following phases:
+
+1. Frontend foundation
+2. Containerization
+3. Continuous Integration & Delivery
+4. AWS infrastructure with Terraform
+5. Backend services
+6. Monitoring & Security
+7. Kubernetes orchestration
+
+These phases describe the current roadmap and may evolve as the project develops.
