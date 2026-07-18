@@ -1,0 +1,67 @@
+.site-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 22px 32px;
+}
+
+.brand {
+  color: var(--text-h);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.navbar a {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.navbar a:hover,
+.navbar a.active {
+  color: var(--text-h);
+}
+
+.site-main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 72px 32px;
+}
+
+.page-section {
+  max-width: 800px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .navbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-main {
+    padding: 48px 20px;
+  }
+}
