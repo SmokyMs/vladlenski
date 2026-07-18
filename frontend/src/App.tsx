@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Infrastructure from './pages/Infrastructure'
@@ -8,7 +9,7 @@ import './App.css'
 
 function App() {
   return (
-    <>
+    <div className="site-layout">
       <Navbar />
       <main className="site-main">
         <Routes>
@@ -18,7 +19,8 @@ function App() {
           <Route path="/resume" element={<Resume />} />
         </Routes>
       </main>
-    </>
+      <Footer />
+    </div>
   )
 }
 
