@@ -8,16 +8,34 @@ The project is developed incrementally, with each phase introducing a focused en
 
 ## Current status
 
-The project is currently in **Phase 2 - Containerization**. 
+The project has completed **Phase 3 – Continuous Integration** and is preparing to begin **Phase 4 – AWS infrastructure with Terraform**.
+
+Completed:
+
+- React + TypeScript + Vite frontend
+- React Router
+- Multi-stage Docker image
+- Nginx static web server
+- Local containerized execution
+- GitHub Actions CI
+  - npm ci
+  - ESLint
+  - Production build
+  - Docker image validation
 
 ## Frontend stack
+
+### Application
 
 - React
 - TypeScript
 - Vite
 - React Router
 
-ESLint is used for code validation.
+### Containerization
+
+- Docker (multi-stage build)
+- Nginx
 
 ## Running locally
 
@@ -40,25 +58,23 @@ npm run lint
 
 ```text
 .
-├── frontend/                  # Frontend application
-│   ├── public/                # Static assets
+├── .github/
+│   └── workflows/
+│       └── frontend-ci.yml
+├── frontend/
+│   ├── public/
 │   └── src/
-│       ├── components/        # Reusable UI components
-│       └── pages/             # Routed page components
-├── AGENTS.md                  # Repository contribution instructions
-└── README.md                  # Project overview and roadmap
-```
+│       ├── components/
+│       └── pages/
+├── AGENTS.md
+└── README.md
 
-## Planned phases
+## Roadmap
 
-The project is expected to evolve through the following phases:
-
-1. Frontend foundation
-2. Containerization
-3. Continuous Integration & Delivery
-4. AWS infrastructure with Terraform
-5. Backend services & APIs
-6. Monitoring & Security
-7. Kubernetes orchestration
-
-These phases describe the current roadmap and may evolve as the project develops.
+- ✅ Phase 1 – Frontend foundation
+- ✅ Phase 2 – Containerization
+- ✅ Phase 3 – Continuous Integration
+- ⏳ Phase 4 – AWS infrastructure with Terraform
+- ⏳ Phase 5 – Backend services & APIs
+- ⏳ Phase 6 – Monitoring & Security
+- ⏳ Phase 7 – Kubernetes orchestration
