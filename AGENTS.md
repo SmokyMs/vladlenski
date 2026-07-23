@@ -124,6 +124,4 @@ npm ci
 npm run lint
 npm run build
 docker build -t vladlenski-frontend .
-
-Any frontend or Docker-related change should continue to pass the GitHub Actions CI workflow.
 ```

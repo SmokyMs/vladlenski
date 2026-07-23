@@ -8,7 +8,7 @@ The project is developed incrementally, with each phase introducing a focused en
 
 ## Current status
 
-The project is currently in **Phase 3 – Continuous Integration**. 
+The project has completed **Phase 3 – Continuous Integration** and is preparing to begin **Phase 4 – AWS infrastructure with Terraform**.
 
 Completed:
 
@@ -56,6 +56,7 @@ npm run lint
 
 ## Repository structure
 
+```text
 .
 ├── .github/
 │   └── workflows/
@@ -72,7 +73,7 @@ npm run lint
 
 - ✅ Phase 1 – Frontend foundation
 - ✅ Phase 2 – Containerization
-- ⏳ Phase 3 – Continuous Integration
+- ✅ Phase 3 – Continuous Integration
 - ⏳ Phase 4 – AWS infrastructure with Terraform
 - ⏳ Phase 5 – Backend services & APIs
 - ⏳ Phase 6 – Monitoring & Security
