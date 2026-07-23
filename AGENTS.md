@@ -69,18 +69,17 @@ unless explicitly instructed.
 
 ## Current Project State
 
-Current phase:
-
-Phase 1 — Frontend Foundation.
-
 Current frontend stack:
 
 - React
 - TypeScript
 - Vite
 - React Router
+- Docker (multi-stage)
+- Nginx
+- GitHub Actions CI (lint, build and Docker validation)
 
-Tailwind CSS will be added later and should not be assumed to exist.
+Do not assume CSS frameworks unless they already exist in the repository.
 
 ---
 
@@ -121,5 +120,10 @@ After frontend changes, prefer validating with:
 
 ```bash
 cd frontend
-npm run build
+npm ci
 npm run lint
+npm run build
+docker build -t vladlenski-frontend .
+
+Any frontend or Docker-related change should continue to pass the GitHub Actions CI workflow.
+```
