@@ -67,19 +67,20 @@ unless explicitly instructed.
 
 ---
 
-## Current Project State
+## Current Technology Stack
 
-Current frontend stack:
-
+Frontend:
 - React
 - TypeScript
 - Vite
 - React Router
-- Docker (multi-stage)
-- Nginx
-- GitHub Actions CI (lint, build and Docker validation)
 
-Do not assume CSS frameworks unless they already exist in the repository.
+Infrastructure:
+- Terraform
+- AWS
+
+CI/CD:
+- GitHub Actions
 
 ---
 
@@ -112,6 +113,17 @@ Do not introduce:
 
 unless explicitly requested.
 
+## Terraform
+
+When working with Terraform:
+
+- Run terraform fmt before validation.
+- Run terraform validate before planning.
+- Review terraform plan before applying.
+- Never run terraform apply without explicit approval.
+After terraform apply, verify the infrastructure with terraform plan and ensure it reports "No changes."
+- Do not make manual AWS changes to Terraform-managed resources unless explicitly instructed.
+
 ---
 
 ## Validation
@@ -125,3 +137,14 @@ npm run lint
 npm run build
 docker build -t vladlenski-frontend .
 ```
+
+After Terraform changes, prefer validating with:
+
+```bash
+cd infrastructure
+terraform fmt
+terraform validate
+terraform plan
+```
+
+Never run `terraform apply` unless explicitly instructed.
