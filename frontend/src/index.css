@@ -1,31 +1,39 @@
 :root {
-  --text: #374151;
-  --text-h: #111827;
-  --bg: #ffffff;
-  --border: #e5e4e7;
-  --accent: #2563eb;
+  --color-background: #eef3f8;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #e8f0fb;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-accent: #2563eb;
+  --color-border: #cbd7e6;
+  --color-focus: #2563eb;
+  --color-control-hover: #e8f0fb;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
 
   font: 16px/1.6 var(--sans);
   letter-spacing: 0;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  color-scheme: light;
+  color: var(--color-text-secondary);
+  background: var(--color-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #111827;
-    --border: #2e303a;
-    --accent: #60a5fa;
-  }
+[data-theme='dark'] {
+  --color-background: #0b1120;
+  --color-surface: #111827;
+  --color-surface-secondary: #172033;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-accent: #60a5fa;
+  --color-border: #263449;
+  --color-focus: #60a5fa;
+  --color-control-hover: #172033;
+
+  color-scheme: dark;
 }
 
 #root {
@@ -35,7 +43,8 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: var(--bg);
+  color: var(--color-text-secondary);
+  background: var(--color-background);
 }
 
 * {
@@ -43,7 +52,7 @@ body {
 }
 
 h1 {
-  color: var(--text-h);
+  color: var(--color-text-primary);
   font-size: 44px;
   line-height: 1.1;
   margin: 0 0 24px;
@@ -51,6 +60,16 @@ h1 {
 
 p {
   margin: 0;
+}
+
+a,
+button {
+  outline-offset: 3px;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-focus);
 }
 
 @media (max-width: 640px) {
