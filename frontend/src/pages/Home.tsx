@@ -74,30 +74,7 @@ function Home() {
             src="/images/profile.JPEG"
             alt="Professional portrait of Vladislav Gavronski"
           />
-          <a
-            href="/Vladislav-Gavronski-CV.pdf"
-            download="Vladislav-Gavronski-CV.pdf"
-            className="primary-link profile-download"
-          >
-            <svg
-              className="download-icon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-              />
-            </svg>
-            <span className="download-copy">
-              <span>Download CV</span>
-              <span className="download-meta">PDF · Updated 2026</span>
-            </span>
-          </a>
+          <div className="primary-link profile-download">CV coming soon</div>
         </aside>
       </section>
 
