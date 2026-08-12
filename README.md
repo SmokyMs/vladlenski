@@ -11,6 +11,7 @@ The primary focus is on:
 - Cloud infrastructure
 - Infrastructure as Code (Terraform)
 - Continuous Integration / Continuous Deployment
+- Reproducible development environments
 - Operational practices
 - Documentation
 - Engineering decision making
@@ -26,6 +27,7 @@ Current capabilities include:
 - React frontend
 - Containerized frontend
 - GitHub Actions Continuous Integration
+- Reproducible Linux development environment using VS Code Dev Containers
 - AWS infrastructure managed with Terraform
 - Secure S3 bucket provisioned for frontend hosting
 
@@ -41,6 +43,14 @@ Completed:
   - ESLint
   - Production build
   - Docker image validation
+- Reproducible Dev Container environment
+  - Node.js
+  - Terraform
+  - AWS CLI
+  - TFLint
+  - Project-specific VS Code extensions
+  - Locked Dev Container feature versions
+- Cross-platform Git line-ending policy
 - Terraform project initialization
 - AWS provider configuration
 - Secure private S3 bucket
@@ -70,10 +80,45 @@ Completed:
 
 - GitHub Actions
 
-### Local Development
+### Development Environment
+
+- VS Code Dev Containers
+- Docker Desktop
+- Debian Linux
+- Node.js
+- Terraform
+- AWS CLI
+- TFLint
+
+### Container Runtime
 
 - Docker
 - Nginx
+
+---
+
+## Development Environment
+
+The repository includes a VS Code Dev Container configuration to provide a consistent Linux-based development environment.
+
+The environment includes the tooling required for frontend and infrastructure development:
+
+- Node.js and npm
+- Terraform
+- AWS CLI
+- TFLint
+- Git
+- ESLint and Terraform VS Code extensions
+
+The repository remains on the host machine and is mounted into the development container. This allows development tooling to run inside an isolated Linux environment while the repository remains the source of truth for project files.
+
+AWS credentials are not mounted into the development container by default. This keeps authenticated cloud access separate from routine development and validation tasks.
+
+After cloning the repository, open it in VS Code and select:
+
+`Dev Containers: Reopen in Container`
+
+Frontend dependencies are installed automatically during container creation using `npm ci`.
 
 ---
 
@@ -101,15 +146,18 @@ Terraform workflow:
 
 Infrastructure changes are performed through Terraform rather than manual AWS Console modifications.
 
+Authenticated Terraform operations are kept separate from routine development tasks. AWS credentials are not exposed to the Dev Container by default.
+
 ---
 
 ## Running the Frontend
+
+When using the Dev Container, frontend dependencies are installed automatically during container creation.
 
 From the repository root:
 
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
@@ -125,13 +173,23 @@ docker build -t vladlenski-frontend .
 
 ## Working with Terraform
 
+Terraform formatting and configuration validation can be performed inside the Dev Container:
+
 ```bash
 cd infrastructure
 
-terraform fmt
+terraform fmt -check
 terraform validate
-terraform plan
 ```
+
+Authenticated Terraform operations require AWS credentials:
+
+```bash
+terraform plan
+terraform apply
+```
+
+AWS credentials are not mounted into the Dev Container by default. The authentication workflow for infrastructure operations is intentionally kept separate from routine development and validation tasks.
 
 `terraform apply` is only performed after reviewing the execution plan.
 
@@ -141,6 +199,9 @@ terraform plan
 
 ```text
 .
+├── .devcontainer/
+│   ├── devcontainer.json
+│   └── devcontainer-lock.json
 ├── .github/
 │   └── workflows/
 │       └── frontend-ci.yml
@@ -154,6 +215,7 @@ terraform plan
 │   ├── s3.tf
 │   ├── versions.tf
 │   └── .terraform.lock.hcl
+├── .gitattributes
 ├── AGENTS.md
 └── README.md
 ```
@@ -168,6 +230,8 @@ This project follows several engineering principles throughout development:
 - Small, reviewable changes
 - Validation before deployment
 - Git-based version control
+- Reproducible development environments
+- Separation of development tooling from cloud credentials
 - Industry-standard tooling
 - Incremental architecture evolution
 - Learning through production-style workflows
@@ -229,15 +293,16 @@ Completed:
 - Public Access Block
 - Bucket ownership controls
 - Lifecycle configuration
+- Reproducible Dev Container development environment
 
 Planned:
 
+- Remote Terraform state and state locking
 - Upload frontend build to S3
 - CloudFront distribution
 - HTTPS using ACM
 - Route 53 custom domain
 - GitHub Actions deployment
-- Remote Terraform state
 
 ---
 

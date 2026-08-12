@@ -26,7 +26,7 @@ The frontend is simply the first workload running on an evolving cloud platform.
 
 ## Collaboration
 
-Before making substantial code changes:
+Before making substantial code or infrastructure changes:
 
 1. Explain the implementation plan.
 2. List the files you intend to modify.
@@ -67,20 +67,61 @@ unless explicitly instructed.
 
 ---
 
+## Development Environment
+
+The VS Code Dev Container is the preferred development environment for this repository.
+
+Run project development and validation commands inside the Dev Container unless the task explicitly requires host-level access.
+
+The Dev Container provides the project tooling, including:
+
+- Node.js and npm;
+- Terraform;
+- AWS CLI;
+- TFLint;
+- Git.
+
+The repository is mounted into the Dev Container, so changes made inside the container modify the repository working tree.
+
+AWS credentials are intentionally not mounted into the Dev Container by default.
+
+Do not:
+
+- copy host AWS credentials into the container;
+- mount host credential directories;
+- configure persistent AWS credentials inside the container;
+- weaken the credential boundary;
+
+unless explicitly instructed.
+
+If a task requires authenticated AWS access and credentials are unavailable, stop and report that authentication is required rather than changing the environment or credential configuration without approval.
+
+---
+
 ## Current Technology Stack
 
 Frontend:
+
 - React
 - TypeScript
 - Vite
 - React Router
 
 Infrastructure:
+
 - Terraform
 - AWS
 
 CI/CD:
+
 - GitHub Actions
+
+Development:
+
+- VS Code Dev Containers
+- Docker
+- Debian Linux
+- TFLint
 
 ---
 
@@ -97,11 +138,11 @@ Use:
 
 Pages belong in:
 
-frontend/src/pages
+`frontend/src/pages`
 
 Reusable UI belongs in:
 
-frontend/src/components
+`frontend/src/components`
 
 Do not introduce:
 
@@ -113,22 +154,31 @@ Do not introduce:
 
 unless explicitly requested.
 
+---
+
 ## Terraform
 
 When working with Terraform:
 
-- Run terraform fmt before validation.
-- Run terraform validate before planning.
-- Review terraform plan before applying.
-- Never run terraform apply without explicit approval.
-After terraform apply, verify the infrastructure with terraform plan and ensure it reports "No changes."
+- Run `terraform fmt` before validation.
+- Run `terraform validate` before planning.
+- Review `terraform plan` before applying.
+- Never run `terraform apply` without explicit approval.
+- After `terraform apply`, verify the infrastructure with `terraform plan` and ensure it reports `No changes`.
 - Do not make manual AWS changes to Terraform-managed resources unless explicitly instructed.
+- Treat Terraform state as sensitive operational data.
+- Do not commit Terraform state files or plan files.
+- Do not modify, move, delete, or migrate Terraform state unless explicitly instructed.
+
+Terraform formatting and validation can run inside the Dev Container without AWS credentials.
+
+Commands that interact with AWS, including a normal refresh-based `terraform plan` or `terraform apply`, require authenticated AWS access. Do not work around missing credentials without approval.
 
 ---
 
 ## Validation
 
-After frontend changes, prefer validating with:
+After frontend changes, prefer validating inside the Dev Container with:
 
 ```bash
 cd frontend
@@ -138,13 +188,20 @@ npm run build
 docker build -t vladlenski-frontend .
 ```
 
-After Terraform changes, prefer validating with:
+After Terraform configuration changes, begin with validation that does not require AWS authentication:
 
 ```bash
 cd infrastructure
 terraform fmt
 terraform validate
+```
+
+When authenticated AWS access is available and the task requires infrastructure evaluation, run:
+
+```bash
 terraform plan
 ```
+
+Review the execution plan before any apply.
 
 Never run `terraform apply` unless explicitly instructed.
