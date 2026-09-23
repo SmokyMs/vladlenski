@@ -1,6 +1,5 @@
-# The numeric suffix is a stable project identifier for global uniqueness, not an AWS account ID.
 resource "aws_s3_bucket" "frontend" {
-  bucket = "vladlenski-frontend-production-884013843"
+  bucket_prefix = "vladlenski-frontend-prod-"
 
   tags = {
     Name        = "vladlenski-frontend-production"
