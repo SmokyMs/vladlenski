@@ -9,56 +9,36 @@ The website itself is not the project. It is the first workload used to design, 
 The primary focus is on:
 
 - Cloud infrastructure
-- Infrastructure as Code (Terraform)
-- Continuous Integration / Continuous Deployment
+- Infrastructure as Code
+- CI/CD
 - Reproducible development environments
+- Cloud security and identity
 - Operational practices
 - Documentation
 - Engineering decision making
 
-The project is developed incrementally, with each milestone introducing a new engineering capability rather than unnecessary complexity.
+The project is developed incrementally, with each milestone introducing a new engineering capability when there is a practical reason for it.
 
 ---
 
 ## Current Status
 
-Current capabilities include:
+The project currently includes:
 
-- React frontend
-- Containerized frontend
-- GitHub Actions Continuous Integration
+- React + TypeScript frontend
+- Containerized Nginx runtime
+- GitHub Actions continuous integration
 - Reproducible Linux development environment using VS Code Dev Containers
 - AWS infrastructure managed with Terraform
-- Secure S3 bucket provisioned for frontend hosting
+- Separate AWS management and production workload accounts
+- AWS IAM Identity Center (SSO) authentication
+- Dedicated Terraform remote-state infrastructure
+- S3-native Terraform state locking
+- Private production S3 frontend infrastructure
 
-Completed:
+The AWS and Terraform foundation is complete.
 
-- React + TypeScript + Vite frontend
-- React Router
-- Multi-stage Docker image
-- Nginx static web server
-- Local containerized execution
-- GitHub Actions CI
-  - npm ci
-  - ESLint
-  - Production build
-  - Docker image validation
-- Reproducible Dev Container environment
-  - Node.js
-  - Terraform
-  - AWS CLI
-  - TFLint
-  - Project-specific VS Code extensions
-  - Locked Dev Container feature versions
-- Cross-platform Git line-ending policy
-- Terraform project initialization
-- AWS provider configuration
-- Secure private S3 bucket
-- Server-side encryption (SSE-S3)
-- Bucket versioning
-- Public Access Block
-- Bucket ownership controls
-- Lifecycle configuration
+The next infrastructure milestone is serving the frontend through CloudFront while keeping the S3 origin private.
 
 ---
 
@@ -76,14 +56,14 @@ Completed:
 - Terraform
 - AWS
 
-### CI
+### CI/CD
 
 - GitHub Actions
 
 ### Development Environment
 
 - VS Code Dev Containers
-- Docker Desktop
+- Docker
 - Debian Linux
 - Node.js
 - Terraform
@@ -94,6 +74,35 @@ Completed:
 
 - Docker
 - Nginx
+
+---
+
+## Architecture
+
+The project separates AWS organization management from application workloads.
+
+```text
+AWS Organization
+│
+├── Management Account
+│   ├── AWS Organizations
+│   ├── IAM Identity Center
+│   └── Governance / account administration
+│
+└── Production Account
+    │
+    ├── Terraform remote state
+    │   └── S3 backend + native state locking
+    │
+    └── Portfolio infrastructure
+        └── Private frontend S3 bucket
+```
+
+The management account is not used for normal application workloads.
+
+The production account contains the Terraform backend and application infrastructure.
+
+The next hosting layer will extend the production architecture with CloudFront in front of the private S3 origin.
 
 ---
 
@@ -110,15 +119,30 @@ The environment includes the tooling required for frontend and infrastructure de
 - Git
 - ESLint and Terraform VS Code extensions
 
-The repository remains on the host machine and is mounted into the development container. This allows development tooling to run inside an isolated Linux environment while the repository remains the source of truth for project files.
-
-AWS credentials are not mounted into the development container by default. This keeps authenticated cloud access separate from routine development and validation tasks.
+The repository remains mounted from the host and acts as the source of truth while development tooling runs inside the Linux container.
 
 After cloning the repository, open it in VS Code and select:
 
 `Dev Containers: Reopen in Container`
 
-Frontend dependencies are installed automatically during container creation using `npm ci`.
+Frontend dependencies are installed during container creation using `npm ci`.
+
+### AWS Authentication
+
+Authenticated AWS access uses AWS IAM Identity Center (SSO) rather than long-lived IAM access keys.
+
+Two AWS CLI profiles separate normal workload operations from management-account operations:
+
+- `vladlenski-prod` — production workload account
+- `vladlenski-management` — AWS Organizations management account
+
+Before account-sensitive infrastructure operations, the target identity can be verified with:
+
+```bash
+aws sts get-caller-identity --profile <profile>
+```
+
+Long-lived IAM access keys are not used for the normal development workflow.
 
 ---
 
@@ -126,27 +150,96 @@ Frontend dependencies are installed automatically during container creation usin
 
 Infrastructure is managed declaratively using Terraform.
 
-Current AWS resources:
+The Terraform configuration is split into two roots:
 
-- Private S3 bucket
-- Server-side encryption (SSE-S3)
-- Bucket versioning
-- Public Access Block
+```text
+infrastructure/
+├── bootstrap/
+│   └── Terraform backend infrastructure
+│
+└── main Terraform root
+    └── Application infrastructure
+```
+
+### Bootstrap Terraform Root
+
+`infrastructure/bootstrap/` manages the infrastructure required by the Terraform remote backend.
+
+The state bucket is configured with:
+
+- S3 public access blocking
 - Bucket ownership controls
-- Lifecycle policy for non-current object versions
+- Server-side encryption
+- Versioning
+- TLS enforcement
+- Lifecycle and state recovery controls
 
-Terraform workflow:
+The bootstrap root intentionally remains independent because the backend infrastructure must exist before the main Terraform configuration can use it.
 
-1. `terraform fmt`
-2. `terraform validate`
-3. `terraform plan`
-4. Review the execution plan
-5. `terraform apply`
-6. `terraform plan` to verify no drift
+### Main Terraform Root
 
-Infrastructure changes are performed through Terraform rather than manual AWS Console modifications.
+`infrastructure/` manages the application infrastructure.
 
-Authenticated Terraform operations are kept separate from routine development tasks. AWS credentials are not exposed to the Dev Container by default.
+Its state is stored remotely in S3 rather than in a local `terraform.tfstate` file.
+
+The backend uses:
+
+- S3 remote state
+- server-side encryption
+- S3-native state locking
+
+Current application infrastructure includes a private S3 frontend bucket with:
+
+- Public Access Block
+- BucketOwnerEnforced ownership
+- SSE-S3 encryption
+- versioning
+- lifecycle management for noncurrent object versions
+
+The frontend bucket is intentionally private. Public delivery will be introduced through CloudFront rather than by exposing the bucket directly.
+
+---
+
+## Terraform Workflow
+
+Terraform changes follow a review-before-apply workflow.
+
+Configuration changes begin with:
+
+```bash
+terraform -chdir=infrastructure fmt
+terraform -chdir=infrastructure validate
+```
+
+For authenticated infrastructure evaluation, the intended AWS identity is verified first:
+
+```bash
+aws sts get-caller-identity --profile vladlenski-prod
+```
+
+A Terraform plan is then reviewed:
+
+```bash
+AWS_PROFILE=vladlenski-prod \
+terraform -chdir=infrastructure plan
+```
+
+For infrastructure-changing operations, reviewed plans can be saved before application:
+
+```bash
+AWS_PROFILE=vladlenski-prod \
+terraform -chdir=infrastructure plan -out=tfplan
+```
+
+The plan is reviewed before `terraform apply`.
+
+After infrastructure changes, another plan is run to verify the desired end state:
+
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+Terraform state and plan files are excluded from Git.
 
 ---
 
@@ -161,7 +254,7 @@ cd frontend
 npm run dev
 ```
 
-Validate the frontend:
+Validate the frontend with:
 
 ```bash
 npm run lint
@@ -171,27 +264,28 @@ docker build -t vladlenski-frontend .
 
 ---
 
-## Working with Terraform
+## Continuous Integration
 
-Terraform formatting and configuration validation can be performed inside the Dev Container:
+GitHub Actions validates frontend changes.
 
-```bash
-cd infrastructure
+The current CI workflow performs:
 
-terraform fmt -check
-terraform validate
+```text
+npm ci
+   │
+   ▼
+ESLint
+   │
+   ▼
+Production build
+   │
+   ▼
+Docker image build
 ```
 
-Authenticated Terraform operations require AWS credentials:
+This verifies both the frontend build and the container image before changes are treated as valid.
 
-```bash
-terraform plan
-terraform apply
-```
-
-AWS credentials are not mounted into the Dev Container by default. The authentication workflow for infrastructure operations is intentionally kept separate from routine development and validation tasks.
-
-`terraform apply` is only performed after reviewing the execution plan.
+Automated deployment to AWS is intentionally separate from the current CI workflow and will be introduced in a later milestone.
 
 ---
 
@@ -202,20 +296,33 @@ AWS credentials are not mounted into the Dev Container by default. The authentic
 ├── .devcontainer/
 │   ├── devcontainer.json
 │   └── devcontainer-lock.json
+│
 ├── .github/
 │   └── workflows/
 │       └── frontend-ci.yml
+│
 ├── frontend/
 │   ├── public/
 │   └── src/
 │       ├── components/
 │       └── pages/
+│
 ├── infrastructure/
+│   ├── bootstrap/
+│   │   ├── .terraform.lock.hcl
+│   │   ├── outputs.tf
+│   │   ├── providers.tf
+│   │   ├── s3.tf
+│   │   └── versions.tf
+│   │
+│   ├── .terraform.lock.hcl
+│   ├── backend.tf
 │   ├── providers.tf
 │   ├── s3.tf
-│   ├── versions.tf
-│   └── .terraform.lock.hcl
+│   └── versions.tf
+│
 ├── .gitattributes
+├── .gitignore
 ├── AGENTS.md
 └── README.md
 ```
@@ -224,23 +331,26 @@ AWS credentials are not mounted into the Dev Container by default. The authentic
 
 ## Engineering Principles
 
-This project follows several engineering principles throughout development:
+The project follows several engineering principles throughout development:
 
 - Infrastructure as Code
 - Small, reviewable changes
 - Validation before deployment
+- Review before infrastructure mutation
 - Git-based version control
 - Reproducible development environments
-- Separation of development tooling from cloud credentials
-- Industry-standard tooling
+- Temporary authentication instead of long-lived cloud credentials
+- Separation of management and workload responsibilities
+- Remote and recoverable Terraform state
+- Least public exposure of infrastructure
 - Incremental architecture evolution
-- Learning through production-style workflows
+- Production-style engineering workflows without unnecessary complexity
 
 ---
 
-## Roadmap
+## Project Progress
 
-### ✅ Phase 1 – Frontend Foundation
+### ✅ Frontend Foundation
 
 Completed:
 
@@ -248,18 +358,11 @@ Completed:
 - TypeScript
 - Vite
 - React Router
-
-Planned:
-
-- Continue improving the portfolio UI/UX
-- Personal profile
-- CV download
-- Infrastructure documentation
-- Project showcase
+- Portfolio pages and reusable components
 
 ---
 
-### ✅ Phase 2 – Containerization
+### ✅ Containerization
 
 Completed:
 
@@ -269,7 +372,7 @@ Completed:
 
 ---
 
-### ✅ Phase 3 – Continuous Integration
+### ✅ Continuous Integration
 
 Completed:
 
@@ -281,32 +384,83 @@ Completed:
 
 ---
 
-### 🚧 Phase 4 – AWS Static Hosting
+### ✅ Development Environment
 
 Completed:
 
-- Terraform setup
-- AWS provider configuration
-- Secure private S3 bucket
-- Server-side encryption
+- VS Code Dev Container
+- Node.js
+- Terraform
+- AWS CLI
+- TFLint
+- Project-specific VS Code extensions
+- Locked Dev Container feature versions
+- Cross-platform Git line-ending policy
+
+---
+
+### ✅ AWS & Terraform Foundation
+
+Completed:
+
+- Terraform AWS provider configuration
+- AWS management/workload account separation
+- AWS IAM Identity Center authentication
+- Explicit production and management AWS CLI profiles
+- Removal of the original long-lived Terraform IAM credential
+- Dedicated Terraform backend bootstrap configuration
+- Private Terraform state S3 bucket
+- Terraform state encryption
+- Terraform state versioning
+- S3-native Terraform state locking
+- Terraform state lifecycle/recovery controls
+- Remote Terraform state
+- Private production frontend S3 bucket
+- SSE-S3 encryption
 - Bucket versioning
 - Public Access Block
 - Bucket ownership controls
 - Lifecycle configuration
-- Reproducible Dev Container development environment
-
-Planned:
-
-- Remote Terraform state and state locking
-- Upload frontend build to S3
-- CloudFront distribution
-- HTTPS using ACM
-- Route 53 custom domain
-- GitHub Actions deployment
+- Migration of the workload out of the AWS management account
+- Verification of the final infrastructure with a zero-change Terraform plan
 
 ---
 
-### ⏳ Phase 5 – Operations & Platform Improvements
+### 🚧 Static Website Delivery
+
+Current target architecture:
+
+```text
+React / Vite build
+        │
+        ▼
+   Private S3
+        │
+        ▼
+    CloudFront
+        │
+        ▼
+      HTTPS
+        │
+        ▼
+  Public portfolio
+```
+
+Planned:
+
+- Upload production frontend build to S3
+- CloudFront distribution
+- Origin Access Control
+- Private S3 origin access policy
+- SPA routing behaviour
+- HTTPS using ACM
+- Custom domain / DNS
+- GitHub Actions deployment
+- CloudFront cache invalidation as required
+
+---
+
+### ⏳ Operations & Platform Improvements
 
 Potential future work:
 
@@ -322,12 +476,6 @@ Potential future work:
 
 ### ⏳ Future Workloads
 
-The portfolio website is intended to host additional projects over time.
+The portfolio is intended to host and document additional engineering projects over time.
 
-Future workloads will only introduce new technologies when they solve a real engineering problem.
-
-Potential projects include:
-
-- D&D item generator
-- Additional cloud-native applications
-- Platform engineering demonstrations
+Future workloads will introduce new technologies only where they solve a practical engineering problem rather than for the sake of increasing the technology count.
