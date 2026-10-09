@@ -38,7 +38,7 @@ The project currently includes:
 
 The AWS and Terraform foundation is complete.
 
-The next infrastructure milestone is serving the frontend through CloudFront while keeping the S3 origin private.
+Phase 4, Milestone 1 is deployed: CloudFront, Origin Access Control (OAC), and the distribution-scoped S3 bucket policy keep the S3 origin private. The post-deployment Terraform plan confirmed no drift.
 
 ---
 
@@ -102,7 +102,7 @@ The management account is not used for normal application workloads.
 
 The production account contains the Terraform backend and application infrastructure.
 
-The next hosting layer will extend the production architecture with CloudFront in front of the private S3 origin.
+The configured public delivery layer is CloudFront over HTTPS, with signed OAC requests to the private S3 regional REST endpoint.
 
 ---
 
@@ -196,7 +196,7 @@ Current application infrastructure includes a private S3 frontend bucket with:
 - versioning
 - lifecycle management for noncurrent object versions
 
-The frontend bucket is intentionally private. Public delivery will be introduced through CloudFront rather than by exposing the bucket directly.
+The frontend bucket remains private. The CloudFront service principal receives only `s3:GetObject` on frontend objects, conditioned on the exact distribution ARN. Existing Public Access Block, ownership, encryption, versioning, and lifecycle controls remain unchanged.
 
 ---
 
@@ -446,17 +446,40 @@ React / Vite build
   Public portfolio
 ```
 
-Planned:
+Milestone 1 configuration (deployed):
 
-- Upload production frontend build to S3
-- CloudFront distribution
-- Origin Access Control
-- Private S3 origin access policy
-- SPA routing behaviour
-- HTTPS using ACM
-- Custom domain / DNS
-- GitHub Actions deployment
-- CloudFront cache invalidation as required
+- CloudFront public HTTPS delivery using the default `*.cloudfront.net` domain and certificate.
+- Signed OAC access to the private S3 regional REST endpoint, restricted by the distribution ARN.
+- HTTP-to-HTTPS redirects, GET/HEAD only, compression, `Managed-CachingOptimized`, and `PriceClass_100`.
+- Terraform outputs for the distribution ID, domain name, and HTTPS URL.
+
+The default CloudFront certificate uses AWS's `TLSv1` viewer security policy; a stricter minimum TLS policy will be evaluated with the future custom domain and certificate.
+
+CloudFront depends on the existing bucket and OAC; the bucket policy references the generated distribution ARN and therefore follows the distribution. No hardcoded ARN or reverse dependency is needed. Initial requests may fail until the policy is installed and propagated. Publishing frontend objects requires a separate deployment.
+
+Milestone 2 requirements (pending):
+
+- Upload the contents of the Vite `dist` directory to the bucket root with correct content types.
+- Evaluate a small CloudFront Function to rewrite known React Router routes to `/index.html`, preserving asset requests and genuine missing-object errors. Until then, direct navigation or refresh on `/infrastructure`, `/projects`, or `/resume` may return 403/404. The Nginx `try_files` fallback does not apply to S3, and the default root object only handles the root URL. Blanket 403/404-to-200 mappings can hide permission failures and return HTML for missing assets.
+- Set S3 `Cache-Control` metadata during deployment: `no-cache` for `index.html`, `public, max-age=31536000, immutable` for Vite hashed JavaScript/CSS, and short-lived or revalidated caching for other unversioned assets.
+- Account for `Managed-CachingOptimized` TTLs: minimum 1 second, default 24 hours, maximum 365 days. The minimum applies even with `no-cache`, `no-store`, or `private`. Verify updated HTML is served correctly and hashed assets remain cacheable; assess invalidation needs.
+
+Later milestones will cover custom domain/DNS, ACM certificates, and GitHub Actions deployment.
+
+Cost monitoring: assume CloudFront pay-as-you-go with `PriceClass_100`, without enrolling in a paid pricing plan or adding fixed-cost services. The existing $5 monthly recurring AWS Budget alerts at 50% and 100%; it monitors spending but does not impose a hard cap. CloudFront usage beyond available allowances and S3 storage, retained versions, and requests can incur charges.
+
+Post-deployment acceptance criteria (no drift verified; live delivery checks pending frontend deployment):
+
+1. CloudFront successfully retrieves published objects from S3.
+2. Anonymous requests directly to the S3 object endpoint receive Access Denied.
+3. All four S3 Public Access Block settings remain enabled.
+4. The bucket policy grants CloudFront only `s3:GetObject`, conditioned on `AWS:SourceArn` matching this distribution ARN.
+5. No public ACLs, public bucket policies, or unnecessary S3 permissions are introduced.
+6. HTTP requests redirect to HTTPS.
+7. The default cache behavior allows only GET and HEAD.
+8. A post-deployment Terraform plan reports no drift.
+
+Frontend uploads, SPA routing, caching configuration, and live delivery checks remain pending for Milestone 2 and require separate approval.
 
 ---
 
