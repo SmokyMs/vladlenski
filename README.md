@@ -40,6 +40,8 @@ The AWS and Terraform foundation is complete.
 
 Phase 4, Milestone 1 is deployed: CloudFront, Origin Access Control (OAC), and the distribution-scoped S3 bucket policy keep the S3 origin private. The post-deployment Terraform plan confirmed no drift.
 
+Phase 4, Milestone 2 is deployed and validated: the frontend is published to private S3, CloudFront serves it over HTTPS, and a viewer-request Function supports allowlisted SPA routes. Object metadata, live HTTP delivery, invalidation completion, and a final zero-change Terraform plan were verified. The production endpoint is [https://d39xlwqgipdqeo.cloudfront.net](https://d39xlwqgipdqeo.cloudfront.net).
+
 ---
 
 ## Technology Stack
@@ -89,13 +91,22 @@ AWS Organization
 │   ├── IAM Identity Center
 │   └── Governance / account administration
 │
-└── Production Account
+└── Production Account (145847015381)
     │
     ├── Terraform remote state
     │   └── S3 backend + native state locking
     │
     └── Portfolio infrastructure
-        └── Private frontend S3 bucket
+        Internet users
+              │
+              ▼
+        CloudFront (HTTPS + viewer-request SPA Function)
+              │
+              ▼
+        OAC (SigV4 signed origin requests)
+              │
+              ▼
+        Private S3 origin (React / Vite build)
 ```
 
 The management account is not used for normal application workloads.
@@ -303,6 +314,8 @@ Automated deployment to AWS is intentionally separate from the current CI workfl
 │
 ├── frontend/
 │   ├── public/
+│   │   └── images/
+│   │       └── profile.webp
 │   └── src/
 │       ├── components/
 │       └── pages/
@@ -317,6 +330,9 @@ Automated deployment to AWS is intentionally separate from the current CI workfl
 │   │
 │   ├── .terraform.lock.hcl
 │   ├── backend.tf
+│   ├── cloudfront.tf
+│   ├── cloudfront-spa.js
+│   ├── outputs.tf
 │   ├── providers.tf
 │   ├── s3.tf
 │   └── versions.tf
@@ -426,24 +442,21 @@ Completed:
 
 ---
 
-### 🚧 Static Website Delivery
+### ✅ Static Website Delivery — Milestones 1 and 2
 
-Current target architecture:
+Deployed delivery architecture:
 
 ```text
-React / Vite build
+Internet users
         │
         ▼
-   Private S3
+CloudFront (HTTPS + viewer-request SPA Function)
         │
         ▼
-    CloudFront
+OAC (SigV4)
         │
         ▼
-      HTTPS
-        │
-        ▼
-  Public portfolio
+Private S3 origin (React / Vite build)
 ```
 
 Milestone 1 configuration (deployed):
@@ -455,31 +468,121 @@ Milestone 1 configuration (deployed):
 
 The default CloudFront certificate uses AWS's `TLSv1` viewer security policy; a stricter minimum TLS policy will be evaluated with the future custom domain and certificate.
 
-CloudFront depends on the existing bucket and OAC; the bucket policy references the generated distribution ARN and therefore follows the distribution. No hardcoded ARN or reverse dependency is needed. Initial requests may fail until the policy is installed and propagated. Publishing frontend objects requires a separate deployment.
+CloudFront depends on the existing bucket and OAC; the bucket policy references the generated distribution ARN and therefore follows the distribution. No hardcoded ARN or reverse dependency is needed. Frontend objects are published separately from Terraform through the manual deployment procedure below.
 
-Milestone 2 requirements (pending):
+Milestone 2 configuration (deployed and validated):
 
-- Upload the contents of the Vite `dist` directory to the bucket root with correct content types.
-- Evaluate a small CloudFront Function to rewrite known React Router routes to `/index.html`, preserving asset requests and genuine missing-object errors. Until then, direct navigation or refresh on `/infrastructure`, `/projects`, or `/resume` may return 403/404. The Nginx `try_files` fallback does not apply to S3, and the default root object only handles the root URL. Blanket 403/404-to-200 mappings can hide permission failures and return HTML for missing assets.
-- Set S3 `Cache-Control` metadata during deployment: `no-cache` for `index.html`, `public, max-age=31536000, immutable` for Vite hashed JavaScript/CSS, and short-lived or revalidated caching for other unversioned assets.
-- Account for `Managed-CachingOptimized` TTLs: minimum 1 second, default 24 hours, maximum 365 days. The minimum applies even with `no-cache`, `no-store`, or `private`. Verify updated HTML is served correctly and hashed assets remain cacheable; assess invalidation needs.
+- The Vite `dist` contents are uploaded to the bucket root. All nine objects passed Content-Type, Cache-Control, and Content-Length checks.
+- The LIVE `vladlenski-frontend-prod-spa` CloudFront Function uses `cloudfront-js-2.0` at viewer-request and rewrites only `/infrastructure`, `/projects`, `/resume`, and their trailing-slash variants to `/index.html`. Query strings remain unchanged. `/` uses the existing default root object; assets and unknown routes remain unchanged. The Nginx `try_files` fallback does not apply to S3. No broad 403/404-to-200 fallback is configured.
+- S3 Cache-Control metadata is `no-cache` for `index.html`, `public, max-age=31536000, immutable` for hashed Vite JavaScript/CSS, and `public, max-age=300` for unversioned static assets.
+- The optimized 960 × 1280 WebP portrait replaces the original JPEG in production. React Router packages are locked to the patched 7.18.2 release; the production dependency audit reported zero vulnerabilities.
+- Wildcard invalidation `I7537ONJ5VNUZHHDTMPTQRZQR9` completed after the first upload. Distribution `E1UCMK3Q4UQK2J` is Deployed.
+- `Managed-CachingOptimized` TTLs remain minimum 1 second, default 24 hours, and maximum 365 days. The minimum applies even with `no-cache`, `no-store`, or `private`.
 
-Later milestones will cover custom domain/DNS, ACM certificates, and GitHub Actions deployment.
+#### Manual frontend deployment runbook
+
+Use this repeatable procedure inside the Dev Container for approved frontend deployments. Verify the existing distribution is Deployed. Frontend-only updates do not require Terraform application; any infrastructure change still requires a reviewed saved plan and explicit apply approval. Uploads and invalidations require authorization. GitHub Actions deployment with OIDC is reserved for Milestone 4.
+
+From the repository root, build and inspect the fresh artifact:
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm run build
+docker build -t vladlenski-frontend .
+rg --files --hidden dist
+cat dist/index.html
+```
+
+Expect root `index.html`, hashed JavaScript/CSS under `assets/`, `favicon.svg`, `icons.svg`, certification PNGs, and `images/profile.webp`. The original JPEG is retained only as a local backup outside the repository and is not part of the deployment artifact. Confirm every HTML asset reference exists. Do not upload source files, source maps, credentials, or unexpected artifacts. Files in `public/` and client-side values embedded in the bundle become publicly readable through CloudFront. Git ignore rules do not filter S3 uploads.
+
+Verify the production identity immediately before deployment:
+
+```bash
+aws sts get-caller-identity --profile vladlenski-prod --region eu-west-2
+```
+
+Confirm account `145847015381`. Stop for an account mismatch or expired SSO authentication rather than changing credential configuration.
+
+From `frontend/`, first run each upload command below with `--dryrun` appended and inspect the destinations. Then execute them in order, stopping immediately if any stage fails. Upload the contents of `dist/` to the bucket root, without a `dist/` prefix.
+
+```bash
+frontend_bucket='vladlenski-frontend-prod-433cb512de8edb66a5216fe156'
+
+# 1. Upload hashed dependencies first.
+aws s3 sync dist/assets/ "s3://${frontend_bucket}/assets/" \
+  --cache-control 'public, max-age=31536000, immutable' \
+  --profile vladlenski-prod --region eu-west-2
+
+# 2. Upload unversioned static files second.
+aws s3 cp dist/ "s3://${frontend_bucket}/" --recursive \
+  --exclude 'index.html' --exclude 'assets/*' \
+  --cache-control 'public, max-age=300' \
+  --profile vladlenski-prod --region eu-west-2
+
+# 3. Publish HTML last, after its dependencies exist.
+aws s3 cp dist/index.html "s3://${frontend_bucket}/index.html" \
+  --content-type 'text/html' --cache-control 'no-cache' \
+  --profile vladlenski-prod --region eu-west-2
+```
+
+Retain previous hashed assets; do not use `--delete`. Cached HTML and open tabs can still reference old hashes. Bucket versioning does not serve deleted keys at their normal URLs. Cleanup of obsolete current hashed objects requires separate review; the existing lifecycle expires noncurrent versions only.
+
+The CLI guesses asset MIME types. Use `aws s3api head-object --bucket "$frontend_bucket" --key <object-key> --profile vladlenski-prod --region eu-west-2` to verify `ContentType`, `CacheControl`, and `ContentLength` against local artifacts. Expected types are `text/html`, `text/javascript` or `application/javascript`, `text/css`, `image/svg+xml`, `image/png`, and `image/webp`. Correct mismatches with an explicit `aws s3 cp --content-type` before acceptance. Check root object paths with `aws s3api list-objects-v2` using the same bucket, profile, and region.
+
+A single sync cannot provide all three cache policies or enforce HTML-last ordering. Sync skips unchanged files, including metadata updates; re-upload existing hashed objects with `cp` if their metadata needs correction. Recursive `cp` deliberately refreshes unversioned files and metadata.
+
+HTML uses `no-cache`, hashed assets use `public, max-age=31536000, immutable`, and unversioned files use `public, max-age=300`. The managed policy can still cache HTML for its one-second minimum despite `no-cache`; browsers must revalidate HTML. Missing cache metadata can invoke the 24-hour default. Invalidation does not clear browser caches.
+
+After each successful deployment, clear stale HTML, route responses, and cached errors using one wildcard invalidation:
+
+```bash
+aws cloudfront create-invalidation \
+  --distribution-id E1UCMK3Q4UQK2J --paths '/*' \
+  --profile vladlenski-prod --region eu-west-2
+
+aws cloudfront wait invalidation-completed \
+  --distribution-id E1UCMK3Q4UQK2J --id <returned-invalidation-id> \
+  --profile vladlenski-prod --region eu-west-2
+```
+
+The wildcard simplifies manual operation but also evicts unchanged assets, increasing origin requests. Invalidation, function invocations, S3 requests, and retained objects can incur usage costs.
+
+Verify after invalidation completes:
+
+- HTTPS `/` returns 200, HTTP redirects to HTTPS, and actual JS/CSS and image paths from the new artifact load successfully.
+- Directly open and refresh `/`, `/infrastructure`, `/projects`, and `/resume` in a browser. Confirm the correct page and no console or asset errors. Check trailing-slash variants, query strings, and `/#projects` scrolling.
+- Missing `/assets/missing.js`, `/images/missing.png`, an extensionless asset, and `/unknown-route` return 403/404, never application HTML with 200. Private S3 can return 403 for missing keys when the caller cannot list the bucket.
+- Anonymous access to the known existing S3 `index.html` returns 403 Access Denied.
+- CloudFront responses show the intended cache headers. Repeat hashed-asset requests to observe `X-Cache` and `Age`; individual edge misses are possible.
+- A post-deployment Terraform plan reports no changes, and Public Access Block and the distribution-scoped OAC policy remain intact.
+
+```bash
+curl -I https://d39xlwqgipdqeo.cloudfront.net/
+curl -I https://d39xlwqgipdqeo.cloudfront.net/projects
+curl -I https://d39xlwqgipdqeo.cloudfront.net/assets/missing.js
+curl -i https://vladlenski-frontend-prod-433cb512de8edb66a5216fe156.s3.eu-west-2.amazonaws.com/index.html
+```
+
+Test any route allowlist changes locally before deployment. Native CloudFront Function testing can now target the existing function using `aws cloudfront test-function` with the selected stage's ETag and a request event; it does not require republishing or changing the distribution. Local function tests and live HTTP checks were performed for Milestone 2; native function testing was not performed.
+
+Future milestones will cover a custom domain, Route 53 DNS, ACM certificates, and GitHub Actions deployment with OIDC. These are not part of the current deployment.
 
 Cost monitoring: assume CloudFront pay-as-you-go with `PriceClass_100`, without enrolling in a paid pricing plan or adding fixed-cost services. The existing $5 monthly recurring AWS Budget alerts at 50% and 100%; it monitors spending but does not impose a hard cap. CloudFront usage beyond available allowances and S3 storage, retained versions, and requests can incur charges.
 
-Post-deployment acceptance criteria (no drift verified; live delivery checks pending frontend deployment):
+Completed automated HTTP and operational acceptance checks:
 
-1. CloudFront successfully retrieves published objects from S3.
-2. Anonymous requests directly to the S3 object endpoint receive Access Denied.
-3. All four S3 Public Access Block settings remain enabled.
-4. The bucket policy grants CloudFront only `s3:GetObject`, conditioned on `AWS:SourceArn` matching this distribution ARN.
-5. No public ACLs, public bucket policies, or unnecessary S3 permissions are introduced.
-6. HTTP requests redirect to HTTPS.
-7. The default cache behavior allows only GET and HEAD.
-8. A post-deployment Terraform plan reports no drift.
+1. HTTPS `/`, `/infrastructure`, `/projects`, and `/resume` return 200 with the HTML matching the local production artifact.
+2. Hashed JavaScript/CSS and `/images/profile.webp` return 200 with the expected MIME types, cache headers, and content matching the local artifacts.
+3. `/unknown-route`, `/assets/missing.js`, `/images/missing.png`, and `/assets/missing` return 403 XML errors rather than homepage HTML.
+4. HTTP requests return 301 with the HTTPS endpoint in the Location header.
+5. Anonymous requests to the known existing S3 `index.html` return 403 AccessDenied.
+6. The wildcard invalidation is Completed and the distribution is Deployed.
+7. All nine uploaded S3 objects passed metadata and size checks. Public Access Block, distribution-scoped read-only OAC access, and GET/HEAD-only behavior remain unchanged.
+8. The final Terraform plan with `-detailed-exitcode` exited 0 and reported `No changes. Your infrastructure matches the configuration.`
 
-Frontend uploads, SPA routing, caching configuration, and live delivery checks remain pending for Milestone 2 and require separate approval.
+Browser visual validation is separate from these automated HTTP checks. The project owner confirmed the live website works, including React Router navigation, dark/light themes, HTTPS redirects, and frontend assets. The automated checks do not execute React or verify visual rendering. Browser refreshes on every route, trailing-slash variants, query strings, and `/#projects` scrolling remain repeatable runbook checks; no additional browser validation is claimed here.
 
 ---
 

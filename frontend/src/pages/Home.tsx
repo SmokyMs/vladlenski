@@ -71,7 +71,7 @@ function Home() {
         <aside className="hero-profile">
           <img
             className="portrait-image"
-            src="/images/profile.JPEG"
+            src="/images/profile.webp"
             alt="Professional portrait of Vladislav Gavronski"
           />
           <div className="primary-link profile-download">CV coming soon</div>
