@@ -12,7 +12,7 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 resource "aws_cloudfront_function" "frontend_spa" {
   name    = "vladlenski-frontend-prod-spa"
   runtime = "cloudfront-js-2.0"
-  comment = "Rewrite known frontend routes to index.html"
+  comment = "Redirect www to the canonical host and rewrite known SPA routes"
   publish = true
   code    = file("${path.module}/cloudfront-spa.js")
 }
@@ -24,6 +24,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled     = true
   http_version        = "http2"
   wait_for_deployment = true
+  aliases             = ["gavronski.dev", "www.gavronski.dev"]
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -52,7 +53,9 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.frontend.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   tags = {

@@ -40,7 +40,9 @@ The AWS and Terraform foundation is complete.
 
 Phase 4, Milestone 1 is deployed: CloudFront, Origin Access Control (OAC), and the distribution-scoped S3 bucket policy keep the S3 origin private. The post-deployment Terraform plan confirmed no drift.
 
-Phase 4, Milestone 2 is deployed and validated: the frontend is published to private S3, CloudFront serves it over HTTPS, and a viewer-request Function supports allowlisted SPA routes. Object metadata, live HTTP delivery, invalidation completion, and a final zero-change Terraform plan were verified. The production endpoint is [https://d39xlwqgipdqeo.cloudfront.net](https://d39xlwqgipdqeo.cloudfront.net).
+Phase 4, Milestone 2 is deployed and validated: the frontend is published to private S3, CloudFront serves it over HTTPS, and a viewer-request Function supports allowlisted SPA routes. Object metadata, live HTTP delivery, invalidation completion, and a final zero-change Terraform plan were verified. The default CloudFront endpoint remains available as an operational fallback at [https://d39xlwqgipdqeo.cloudfront.net](https://d39xlwqgipdqeo.cloudfront.net).
+
+Phase 4, Milestone 3 infrastructure is deployed. The canonical production URL is [https://gavronski.dev](https://gavronski.dev). Route 53 provides authoritative DNS, ACM in `us-east-1` provides the issued certificate for both custom hostnames, and the existing CloudFront distribution serves HTTPS with a permanent `www`-to-apex redirect. Direct CloudFront acceptance checks passed and the post-apply Terraform drift check exited 0. The project owner successfully opened the canonical URL over mobile internet without DNS overrides and confirmed the HTTPS `www`-to-apex redirect in a real browser. Worldwide DNS propagation has not been independently verified.
 
 ---
 
@@ -97,10 +99,15 @@ AWS Organization
     │   └── S3 backend + native state locking
     │
     └── Portfolio infrastructure
-        Internet users
-              │
+        DNS resolution:
+        gavronski.dev / www.gavronski.dev
+              └── Route 53 A / AAAA aliases resolve to CloudFront
+
+        HTTP request flow:
+        Browser (after DNS resolution)
+              │ HTTPS directly to CloudFront
               ▼
-        CloudFront (HTTPS + viewer-request SPA Function)
+        CloudFront (ACM HTTPS + www redirect / SPA Function)
               │
               ▼
         OAC (SigV4 signed origin requests)
@@ -113,7 +120,7 @@ The management account is not used for normal application workloads.
 
 The production account contains the Terraform backend and application infrastructure.
 
-The configured public delivery layer is CloudFront over HTTPS, with signed OAC requests to the private S3 regional REST endpoint.
+The canonical public endpoint is `https://gavronski.dev`. Registration remains at Porkbun, with nameserver delegation to the Route 53 public hosted zone. A/AAAA aliases for the apex and `www` target the existing CloudFront distribution. CloudFront uses a DNS-validated ACM certificate in `us-east-1`, SNI, and the `TLSv1.2_2021` viewer security policy. The existing viewer-request Function redirects `www` to the HTTPS apex before applying its SPA route allowlist. Signed OAC requests continue to use the private S3 regional REST endpoint. The default CloudFront hostname remains an operational fallback.
 
 ---
 
@@ -329,9 +336,11 @@ Automated deployment to AWS is intentionally separate from the current CI workfl
 │   │   └── versions.tf
 │   │
 │   ├── .terraform.lock.hcl
+│   ├── acm.tf
 │   ├── backend.tf
 │   ├── cloudfront.tf
 │   ├── cloudfront-spa.js
+│   ├── dns.tf
 │   ├── outputs.tf
 │   ├── providers.tf
 │   ├── s3.tf
@@ -442,15 +451,20 @@ Completed:
 
 ---
 
-### ✅ Static Website Delivery — Milestones 1 and 2
+### ✅ Static Website Delivery — Milestones 1, 2 and 3 Infrastructure
 
 Deployed delivery architecture:
 
 ```text
-Internet users
-        │
+DNS resolution:
+gavronski.dev / www.gavronski.dev
+        └── Route 53 A / AAAA aliases resolve to CloudFront
+
+HTTP request flow:
+Browser (after DNS resolution)
+        │ HTTPS directly to CloudFront
         ▼
-CloudFront (HTTPS + viewer-request SPA Function)
+CloudFront (ACM HTTPS + www redirect / SPA Function)
         │
         ▼
 OAC (SigV4)
@@ -459,14 +473,14 @@ OAC (SigV4)
 Private S3 origin (React / Vite build)
 ```
 
-Milestone 1 configuration (deployed):
+Milestone 1 configuration (historical deployment baseline):
 
-- CloudFront public HTTPS delivery using the default `*.cloudfront.net` domain and certificate.
+- Initially deployed CloudFront public HTTPS delivery using the default `*.cloudfront.net` domain and certificate. Milestone 3 replaces the viewer certificate configuration with ACM; the default hostname remains available.
 - Signed OAC access to the private S3 regional REST endpoint, restricted by the distribution ARN.
 - HTTP-to-HTTPS redirects, GET/HEAD only, compression, `Managed-CachingOptimized`, and `PriceClass_100`.
 - Terraform outputs for the distribution ID, domain name, and HTTPS URL.
 
-The default CloudFront certificate uses AWS's `TLSv1` viewer security policy; a stricter minimum TLS policy will be evaluated with the future custom domain and certificate.
+The original default-certificate configuration used AWS's `TLSv1` viewer security policy. The current Milestone 3 configuration uses ACM and `TLSv1.2_2021`.
 
 CloudFront depends on the existing bucket and OAC; the bucket policy references the generated distribution ARN and therefore follows the distribution. No hardcoded ARN or reverse dependency is needed. Frontend objects are published separately from Terraform through the manual deployment procedure below.
 
@@ -478,6 +492,27 @@ Milestone 2 configuration (deployed and validated):
 - The optimized 960 × 1280 WebP portrait replaces the original JPEG in production. React Router packages are locked to the patched 7.18.2 release; the production dependency audit reported zero vulnerabilities.
 - Wildcard invalidation `I7537ONJ5VNUZHHDTMPTQRZQR9` completed after the first upload. Distribution `E1UCMK3Q4UQK2J` is Deployed.
 - `Managed-CachingOptimized` TTLs remain minimum 1 second, default 24 hours, and maximum 365 days. The minimum applies even with `no-cache`, `no-store`, or `private`.
+
+#### Milestone 3 — Custom Domain, ACM and DNS
+
+Infrastructure deployment and direct CloudFront acceptance checks are complete. The project owner also confirmed real-browser access to the apex and the HTTPS `www` redirect over mobile internet without DNS overrides.
+
+- Porkbun retains domain registration. Its configured nameservers match the four nameservers assigned to the Terraform-managed Route 53 public hosted zone.
+- Deployment A created the hosted zone, a standard public ACM certificate in `us-east-1` for `gavronski.dev` and `www.gavronski.dev`, and DNS validation CNAMEs. After delegation, ACM reported `ISSUED` with `SUCCESS` for both names. Validation CNAMEs remain Terraform-managed for renewal.
+- Deployment B added the certificate-validation waiter, updated distribution `E1UCMK3Q4UQK2J` and the existing Function in place, and created four Route 53 A/AAAA aliases using the distribution's domain name and hosted-zone ID. No additional distribution or bucket was introduced.
+- The canonical URL is [https://gavronski.dev](https://gavronski.dev). CloudFront uses both custom aliases, the ACM certificate, SNI, and `TLSv1.2_2021`. HTTP redirects to HTTPS. HTTP `www` first redirects to HTTPS `www`, then the Function returns a permanent 301 to the apex.
+- The Function preserves paths, query values, repeated parameters, and existing percent encoding before the SPA rewrites. CloudFront's structured query model can group interleaved duplicate parameters and represents bare parameters as `name=`.
+- The private S3 origin, signed OAC requests, distribution-scoped bucket policy, cache policy, GET/HEAD-only behavior, and SPA route allowlist remain unchanged. Terraform outputs include the canonical URL, default CloudFront URL, hosted-zone ID, nameservers, and certificate ARN.
+
+Direct acceptance testing used a CloudFront IPv4 address returned by independent Google DNS-over-HTTPS checks with `curl --resolve`. This selected the destination IP while retaining the original hostname, SNI, and normal certificate verification; no TLS verification bypass was used.
+
+- Apex `/`, `/infrastructure`, `/projects`, and `/resume` returned 200 with HTML matching the local production build.
+- HTTPS `www` returned 301 to `https://gavronski.dev/`. `/projects?source=cv` and `/resume?tag=first&tag=second` redirected to the matching apex paths and query parameters.
+- JavaScript and CSS identified from deployed HTML, the portrait identified from deployed JavaScript, and the favicon returned 200 with correct MIME types.
+- `/unknown-route` returned 403 XML rather than SPA HTML. Anonymous access to the existing S3 `index.html` returned 403. The default CloudFront endpoint returned 200 portfolio HTML.
+- TLS verification succeeded for both custom hostnames. CloudFront reported `Deployed`, and the post-apply Terraform plan with `-detailed-exitcode` exited 0 with no changes.
+
+DNS and browser verification status: ordinary DNS resolution on both the Windows PC and Dev Container still returned Porkbun parking records during acceptance testing. Independent Google DNS-over-HTTPS queries returned CloudFront A and AAAA records for both custom hostnames. Unpinned Dev Container HTTPS requests reached the parking IP and failed the TLS handshake; its HTTP requests returned parking responses. These results distinguish stale recursive DNS from the passing direct CloudFront checks. The project owner subsequently opened `https://gavronski.dev` successfully over mobile internet without DNS overrides and confirmed that `https://www.gavronski.dev` redirects to the canonical apex in a real browser. The Windows home-network and Dev Container parking responses are earlier observations; worldwide DNS propagation has not been independently verified. The mobile checks confirm apex access and the `www` redirect only. They do not establish retesting of every SPA route, refresh scenario, or browser feature. Direct HTTP checks do not execute React or establish browser rendering; the existing route and browser checks remain part of the repeatable runbook.
 
 #### Manual frontend deployment runbook
 
@@ -559,19 +594,21 @@ Verify after invalidation completes:
 - A post-deployment Terraform plan reports no changes, and Public Access Block and the distribution-scoped OAC policy remain intact.
 
 ```bash
+curl -I https://gavronski.dev/
+curl -I https://gavronski.dev/projects
+curl -I https://gavronski.dev/assets/missing.js
+# Operational fallback check:
 curl -I https://d39xlwqgipdqeo.cloudfront.net/
-curl -I https://d39xlwqgipdqeo.cloudfront.net/projects
-curl -I https://d39xlwqgipdqeo.cloudfront.net/assets/missing.js
 curl -i https://vladlenski-frontend-prod-433cb512de8edb66a5216fe156.s3.eu-west-2.amazonaws.com/index.html
 ```
 
 Test any route allowlist changes locally before deployment. Native CloudFront Function testing can now target the existing function using `aws cloudfront test-function` with the selected stage's ETag and a request event; it does not require republishing or changing the distribution. Local function tests and live HTTP checks were performed for Milestone 2; native function testing was not performed.
 
-Future milestones will cover a custom domain, Route 53 DNS, ACM certificates, and GitHub Actions deployment with OIDC. These are not part of the current deployment.
+Custom domains, Route 53 DNS, and ACM HTTPS are deployed in Milestone 3. GitHub Actions deployment with OIDC remains planned for Milestone 4.
 
-Cost monitoring: assume CloudFront pay-as-you-go with `PriceClass_100`, without enrolling in a paid pricing plan or adding fixed-cost services. The existing $5 monthly recurring AWS Budget alerts at 50% and 100%; it monitors spending but does not impose a hard cap. CloudFront usage beyond available allowances and S3 storage, retained versions, and requests can incur charges.
+Cost monitoring: assume CloudFront pay-as-you-go with `PriceClass_100`, without enrolling in a paid CloudFront pricing plan. Route 53 adds a public hosted-zone charge (currently $0.50 per month for the first 25 zones); CloudFront-targeted A/AAAA alias queries are free, while other DNS queries can incur charges. The standard non-exportable ACM public certificate has no certificate charge. Porkbun registration renewal remains separate. See [Route 53 pricing](https://aws.amazon.com/route53/pricing/) and [ACM pricing](https://aws.amazon.com/certificate-manager/pricing/). The existing $5 monthly AWS Budget sends alerts at 50% and 100% of the configured threshold. These alerts monitor spending but do not impose a hard spending cap. CloudFront usage beyond available allowances and S3 storage, retained versions, and requests can incur charges.
 
-Completed automated HTTP and operational acceptance checks:
+Milestone 2 automated HTTP and operational acceptance checks (historical default-domain validation):
 
 1. HTTPS `/`, `/infrastructure`, `/projects`, and `/resume` return 200 with the HTML matching the local production artifact.
 2. Hashed JavaScript/CSS and `/images/profile.webp` return 200 with the expected MIME types, cache headers, and content matching the local artifacts.
@@ -582,7 +619,7 @@ Completed automated HTTP and operational acceptance checks:
 7. All nine uploaded S3 objects passed metadata and size checks. Public Access Block, distribution-scoped read-only OAC access, and GET/HEAD-only behavior remain unchanged.
 8. The final Terraform plan with `-detailed-exitcode` exited 0 and reported `No changes. Your infrastructure matches the configuration.`
 
-Browser visual validation is separate from these automated HTTP checks. The project owner confirmed the live website works, including React Router navigation, dark/light themes, HTTPS redirects, and frontend assets. The automated checks do not execute React or verify visual rendering. Browser refreshes on every route, trailing-slash variants, query strings, and `/#projects` scrolling remain repeatable runbook checks; no additional browser validation is claimed here.
+Milestone 2 browser visual validation is separate from these automated HTTP checks. The project owner confirmed the default-domain website works, including React Router navigation, dark/light themes, HTTPS redirects, and frontend assets. The automated checks do not execute React or verify visual rendering. Browser refreshes on every route, trailing-slash variants, query strings, and `/#projects` scrolling remain repeatable runbook checks; no additional browser validation is claimed here.
 
 ---
 
