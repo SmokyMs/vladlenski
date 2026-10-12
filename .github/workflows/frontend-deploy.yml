@@ -1,0 +1,337 @@
+name: Frontend Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview uploads without publishing or invalidating
+        type: boolean
+        default: true
+      commit_sha:
+        description: Optional full SHA of a reviewed, successfully deployed production revision
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: frontend-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  frontend-deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      FRONTEND_BUCKET: vladlenski-frontend-prod-433cb512de8edb66a5216fe156
+      DISTRIBUTION_ID: E1UCMK3Q4UQK2J
+      SITE_URL: https://gavronski.dev
+      AWS_PAGER: ""
+
+    steps:
+      - name: Verify main branch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select deployment commit
+        id: revision
+        env:
+          REQUESTED_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          # Rollback requires a reviewed, successfully deployed production revision.
+          # Ancestry alone does not prove eligibility. Rebuilds may differ in bytes;
+          # rollback leaves later files and cannot automatically undo partial uploads.
+          if [[ -n "$REQUESTED_SHA" ]]; then
+            if [[ ! "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Provide a full lowercase Git commit SHA."
+              exit 1
+            fi
+            git cat-file -e "${REQUESTED_SHA}^{commit}"
+            git merge-base --is-ancestor "$REQUESTED_SHA" "$GITHUB_SHA"
+            git checkout --detach "$REQUESTED_SHA"
+          fi
+
+          deployment_sha="$(git rev-parse HEAD)"
+          printf 'sha=%s\n' "$deployment_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Check deployment artifact
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import re
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import unquote, urlsplit
+
+          root = Path("dist").resolve()
+          index = root / "index.html"
+          assets = root / "assets"
+          if not index.is_file() or index.stat().st_size == 0 or not assets.is_dir():
+              raise ValueError("Missing HTML or assets directory")
+          if Path("public/assets").exists():
+              raise ValueError("public/assets is reserved for hashed Vite assets")
+
+          # Use checked directory traversal rather than Bash process substitution.
+          files = []
+          def inspect(directory):
+              for path in sorted(directory.iterdir()):
+                  if path.is_symlink():
+                      raise ValueError(f"Unexpected symlink: {path}")
+                  if path.is_dir():
+                      inspect(path)
+                  elif path.is_file():
+                      files.append(path)
+                  else:
+                      raise ValueError(f"Unexpected artifact: {path}")
+
+          if Path("dist").is_symlink():
+              raise ValueError("dist must not be a symlink")
+          inspect(root)
+          javascript_count = 0
+          for path in files:
+              # Stay below AWS CLI's default 8 MiB multipart threshold.
+              if path.suffix == ".map" or path.stat().st_size >= 8388608:
+                  raise ValueError(f"Source map or oversized artifact: {path}")
+              if path.is_relative_to(assets):
+                  if not re.fullmatch(r".+-[A-Za-z0-9_-]{8,}\.(js|css)", path.name):
+                      raise ValueError(f"Unexpected hashed asset: {path}")
+                  javascript_count += path.suffix == ".js"
+              print(path.relative_to(root))
+          if javascript_count == 0:
+              raise ValueError("No expected content-hashed JavaScript asset found")
+
+          class AssetCheck(HTMLParser):
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  reference = (
+                      attrs.get("src") if tag == "script"
+                      else attrs.get("href") if tag == "link"
+                      else None
+                  )
+                  if not reference:
+                      return
+                  url = urlsplit(reference)
+                  if not url.path.endswith((".js", ".css")):
+                      return
+                  if url.scheme or url.netloc:
+                      raise ValueError(f"Unexpected external asset: {reference}")
+                  asset = (root / unquote(url.path).lstrip("/")).resolve()
+                  if not asset.is_relative_to(root) or not asset.is_file():
+                      raise ValueError(f"Missing or invalid asset: {reference}")
+
+          AssetCheck().feed(index.read_text())
+          print("HTML JavaScript and CSS references verified.")
+          PY
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::145847015381:role/vladlenski-github-actions-deploy-prod
+          aws-region: eu-west-2
+          allowed-account-ids: "145847015381"
+          role-session-name: github-frontend-deploy
+
+      - name: Verify AWS identity
+        run: |
+          set -euo pipefail
+
+          identity="$(aws sts get-caller-identity --output json)"
+          printf '%s\n' "$identity"
+          test "$(jq -r '.Account' <<< "$identity")" = "145847015381"
+          test "$(jq -r '.Arn' <<< "$identity")" = \
+            "arn:aws:sts::145847015381:assumed-role/vladlenski-github-actions-deploy-prod/github-frontend-deploy"
+
+      - name: Publish frontend in dependency order
+        id: publish
+        working-directory: frontend
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          options=()
+          if [[ "$DRY_RUN" == "true" ]]; then
+            options+=(--dryrun)
+          fi
+
+          aws s3 cp dist/assets/ "s3://${FRONTEND_BUCKET}/assets/" \
+            --recursive --no-follow-symlinks \
+            --cache-control 'public, max-age=31536000, immutable' \
+            "${options[@]}"
+
+          aws s3 cp dist/ "s3://${FRONTEND_BUCKET}/" \
+            --recursive --no-follow-symlinks \
+            --exclude 'index.html' --exclude 'assets/*' \
+            --cache-control 'public, max-age=300' \
+            "${options[@]}"
+
+          aws s3 cp dist/index.html "s3://${FRONTEND_BUCKET}/index.html" \
+            --content-type 'text/html' --cache-control 'no-cache' \
+            "${options[@]}"
+
+      - name: Invalidate HTML and unversioned files
+        id: invalidate
+        if: ${{ !inputs.dry_run }}
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+
+          paths=(
+            "/" "/index.html"
+            "/infrastructure" "/infrastructure/"
+            "/projects" "/projects/"
+            "/resume" "/resume/"
+          )
+
+          file_list="$(mktemp)"
+          trap 'rm -f "$file_list"' EXIT
+          find dist -type f \
+            ! -path 'dist/assets/*' ! -path 'dist/index.html' -print0 > "$file_list"
+          while IFS= read -r -d '' file; do
+            paths+=("/${file#dist/}")
+          done < "$file_list"
+
+          invalidation_id="$(
+            aws cloudfront create-invalidation \
+              --distribution-id "$DISTRIBUTION_ID" \
+              --paths "${paths[@]}" \
+              --query 'Invalidation.Id' --output text
+          )"
+          printf 'id=%s\n' "$invalidation_id" >> "$GITHUB_OUTPUT"
+
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --id "$invalidation_id"
+
+      - name: Verify live files and SPA routes
+        id: verify
+        if: ${{ !inputs.dry_run }}
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+
+          response="$(mktemp)"
+          file_list="$(mktemp)"
+          trap 'rm -f "$response" "$file_list"' EXIT
+
+          verify_content() {
+            local path="$1"
+            local expected="$2"
+            local attempt http_status expected_hash actual_hash
+
+            for attempt in 1 2 3 4; do
+              : > "$response"
+              if http_status="$(curl --fail --silent --show-error --compressed \
+                --connect-timeout 10 --max-time 30 \
+                --write-out '%{http_code}' \
+                "${SITE_URL}${path}" --output "$response")" \
+                && [[ "$http_status" == "200" ]] \
+                && cmp --silent "$expected" "$response"; then
+                return 0
+              fi
+
+              if [[ "$attempt" -lt 4 ]]; then
+                sleep 5
+              fi
+            done
+
+            expected_hash="$(sha256sum "$expected")"
+            actual_hash="$(sha256sum "$response")"
+            printf '::error::Live verification failed: path=%s HTTP=%s expected_sha256=%s actual_sha256=%s\n' \
+              "$path" "${http_status:-unavailable}" \
+              "${expected_hash%% *}" "${actual_hash%% *}"
+            return 1
+          }
+
+          find dist -type f -print0 > "$file_list"
+          while IFS= read -r -d '' file; do
+            verify_content "/${file#dist/}" "$file"
+          done < "$file_list"
+
+          for path in / /infrastructure /infrastructure/ \
+            /projects /projects/ /resume /resume/; do
+            verify_content "$path" dist/index.html
+          done
+
+      - name: Report deployment result
+        if: ${{ always() }}
+        env:
+          DEPLOYMENT_SHA: ${{ steps.revision.outputs.sha }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PUBLISH_RESULT: ${{ steps.publish.outcome }}
+          INVALIDATION_ID: ${{ steps.invalidate.outputs.id }}
+          INVALIDATION_RESULT: ${{ steps.invalidate.outcome }}
+          VERIFY_RESULT: ${{ steps.verify.outcome }}
+          JOB_RESULT: ${{ job.status }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Frontend deployment result"
+            printf -- '- Selected commit: `%s`\n' \
+              "${DEPLOYMENT_SHA:-not selected}"
+            printf -- '- Workflow status before summary: %s\n' "$JOB_RESULT"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "- Mode: dry run — no production deployment performed"
+              printf -- '- Upload preview: %s\n' "$PUBLISH_RESULT"
+              echo "- CloudFront invalidation: not requested"
+              echo "- Live release verification: not performed"
+            else
+              echo "- Mode: real deployment"
+              printf -- '- Publishing: %s\n' "$PUBLISH_RESULT"
+              printf -- '- CloudFront invalidation ID: `%s`\n' \
+                "${INVALIDATION_ID:-not created}"
+              printf -- '- Invalidation completion: %s\n' "$INVALIDATION_RESULT"
+              printf -- '- Live verification: %s\n' "$VERIFY_RESULT"
+
+              if [[ "$PUBLISH_RESULT" == "success" \
+                && "$INVALIDATION_RESULT" == "success" \
+                && "$VERIFY_RESULT" == "success" ]]; then
+                printf -- '- Successfully deployed and verified commit: `%s`\n' \
+                  "$DEPLOYMENT_SHA"
+              else
+                echo "- Production deployment did not complete successfully."
+                echo "- Some S3 objects may have changed; inspect before recovery."
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
