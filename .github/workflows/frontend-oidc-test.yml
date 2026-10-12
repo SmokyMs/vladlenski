@@ -1,0 +1,50 @@
+name: Frontend OIDC Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+jobs:
+  frontend-oidc-test:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+
+    steps:
+      - name: Verify main branch
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::This workflow requires the main branch."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::145847015381:role/vladlenski-github-actions-deploy-prod
+          aws-region: eu-west-2
+          allowed-account-ids: "145847015381"
+          role-session-name: github-oidc-test
+
+      - name: Verify AWS identity
+        shell: bash
+        run: |
+          identity="$(aws sts get-caller-identity --output json)"
+          printf '%s\n' "$identity"
+
+          account="$(jq -r '.Account' <<< "$identity")"
+          role_arn="$(jq -r '.Arn' <<< "$identity")"
+
+          if [[ "$account" != "145847015381" ]]; then
+            echo "::error::Unexpected AWS account."
+            exit 1
+          fi
+
+          if [[ "$role_arn" != "arn:aws:sts::145847015381:assumed-role/vladlenski-github-actions-deploy-prod/github-oidc-test" ]]; then
+            echo "::error::Unexpected assumed role."
+            exit 1
+          fi
