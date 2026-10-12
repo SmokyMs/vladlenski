@@ -32,3 +32,8 @@ output "canonical_url" {
   description = "Canonical public HTTPS URL for the frontend."
   value       = "https://gavronski.dev"
 }
+
+output "github_actions_deploy_role_arn" {
+  description = "IAM role ARN for GitHub Actions frontend deployments to production."
+  value       = aws_iam_role.github_actions_deploy_prod.arn
+}
