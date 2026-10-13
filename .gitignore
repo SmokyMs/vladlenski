@@ -16,3 +16,42 @@ crash.*.log
 # Terraform CLI configuration
 .terraformrc
 terraform.rc
+
+# Local environment files; keep example templates
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Terraform variable values; keep example templates
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+!*.example.tfvars.json
+
+# Local Terraform overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local AWS and SSH files
+.aws/
+.ssh/
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.pem
+*.key
+
+# Local logs, temporary files and editor artifacts
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
