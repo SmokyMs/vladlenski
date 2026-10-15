@@ -132,7 +132,7 @@ jobs:
               if path.suffix == ".map" or path.stat().st_size >= 8388608:
                   raise ValueError(f"Source map or oversized artifact: {path}")
               if path.is_relative_to(assets):
-                  if not re.fullmatch(r".+-[A-Za-z0-9_-]{8,}\.(js|css)", path.name):
+                  if not re.fullmatch(r".+-[A-Za-z0-9_-]{8,}\.(js|css|svg)", path.name):
                       raise ValueError(f"Unexpected hashed asset: {path}")
                   javascript_count += path.suffix == ".js"
               print(path.relative_to(root))

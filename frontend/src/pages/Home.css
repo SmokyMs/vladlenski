@@ -4,6 +4,15 @@
   gap: 96px;
 }
 
+.home-page p:not(.hero-subtitle) {
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+[data-theme='dark'] .home-page p:not(.hero-subtitle) {
+  color: var(--color-text-primary);
+}
+
 .home-section {
   width: 100%;
 }
@@ -34,9 +43,7 @@
 .hero-description,
 .hero-supporting-text {
   color: var(--color-text-primary);
-  font-size: 18px;
   font-weight: 400;
-  line-height: 1.65;
 }
 
 .hero-description {
@@ -186,33 +193,35 @@
 }
 
 .architecture-overview {
-  min-height: 260px;
+  --color-accent: #60a5fa;
+  --color-focus: #60a5fa;
+
   margin-top: 32px;
-  padding: 24px;
-  border: 1px solid var(--color-border);
+  padding: 24px 20px;
+  border: 1px solid #334155;
   border-radius: 8px;
-  background: var(--color-surface);
+  background: #111827;
 }
 
 .architecture-overview-label {
   display: inline-block;
-  color: var(--color-text-secondary);
+  color: #cbd5e1;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.architecture-overview-space {
-  display: flex;
-  min-height: 190px;
-  align-items: center;
-  justify-content: center;
+.architecture-overview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
 }
 
-.architecture-overview-space p {
-  max-width: 460px;
-  text-align: center;
+.architecture-overview-description {
+  margin-top: 16px;
+  color: #e2e8f0;
 }
 
 .section-detail {
@@ -280,9 +289,8 @@
     font-size: clamp(1.125rem, 4.8vw, 1.25rem);
   }
 
-  .hero-description,
-  .hero-supporting-text {
-    font-size: 17px;
+  .home-page p:not(.hero-subtitle) {
+    font-size: 16px;
   }
 
   .hero-description {
@@ -302,11 +310,23 @@
   }
 
   .certifications ul {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+
+  .certifications li:last-child {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc((100% - 12px) / 2);
   }
 
   .certification-badge {
-    min-height: 202px;
+    min-height: 136px;
+    padding: 8px;
+  }
+
+  .certification-badge img {
+    height: 120px;
   }
 
   .hero-profile {
@@ -323,17 +343,20 @@
   }
 
   .architecture-overview {
-    min-height: 180px;
     margin-top: 24px;
-    padding: 20px;
+    padding: 20px 16px;
   }
 
-  .architecture-overview-space {
-    min-height: 110px;
+  .architecture-overview .text-link {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    text-decoration: underline;
   }
 
   .projects-section {
-    scroll-margin-top: 160px;
+    scroll-margin-top: 192px;
   }
 
   .projects-empty-state {

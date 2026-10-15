@@ -30,7 +30,7 @@ function Home() {
         <div className="hero-content">
           <h1 id="hero-title">Vladislav Gavronski</h1>
           <p className="hero-subtitle">
-            Security Analyst transitioning into Cloud &amp; Platform Engineering
+            Security Analyst | Cloud Infrastructure &amp; Automation
           </p>
           <p className="hero-description">
             This portfolio is where I document what I'm building and the
