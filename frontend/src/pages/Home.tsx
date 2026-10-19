@@ -74,7 +74,6 @@ function Home() {
             src="/images/profile.webp"
             alt="Professional portrait of Vladislav Gavronski"
           />
-          <div className="primary-link profile-download">CV coming soon</div>
         </aside>
       </section>
 
@@ -82,17 +81,16 @@ function Home() {
         <div className="section-heading">
           <h2 id="site-works-title">How This Site Works</h2>
           <p>
-            This website is the first workload in a broader engineering
-            portfolio, hosted on AWS and managed using Infrastructure as Code.
+            This website runs on AWS, with Terraform managing the infrastructure
+            and GitHub Actions handling deployments.
           </p>
         </div>
 
         <ArchitectureOverview />
 
         <p className="section-detail">
-          The infrastructure page documents the architecture, Terraform
-          configuration, deployment workflow, security decisions and cost
-          considerations behind the site.
+          The diagram shows the main services involved. I've documented the setup,
+          the decisions I made and the problems I ran into on the Infrastructure page.
         </p>
         <Link to="/infrastructure" className="text-link">
           Explore the infrastructure <span aria-hidden="true">→</span>
@@ -106,16 +104,25 @@ function Home() {
       >
         <div className="section-heading">
           <h2 id="projects-title">Projects</h2>
-          <p>
-            Additional cloud and platform engineering projects will be
-            documented here as they are developed.
-          </p>
         </div>
 
-        <div className="projects-empty-state">
-          <h3>Projects coming soon</h3>
-          <p>New projects will be added as the portfolio grows.</p>
-        </div>
+        <article className="project-card" aria-labelledby="aws-project-title">
+          <h3 id="aws-project-title">AWS Portfolio Infrastructure</h3>
+          <p>
+            A static website hosted on AWS, with Terraform-managed infrastructure,
+            private S3 hosting, CloudFront and a manually triggered GitHub Actions
+            deployment pipeline.
+          </p>
+          <ul className="project-technologies" aria-label="Technologies">
+            <li>Terraform</li>
+            <li>AWS</li>
+            <li>GitHub Actions</li>
+            <li>OIDC</li>
+          </ul>
+          <Link to="/infrastructure" className="text-link">
+            View project details <span aria-hidden="true">→</span>
+          </Link>
+        </article>
       </section>
     </div>
   )

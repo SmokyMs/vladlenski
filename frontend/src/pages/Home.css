@@ -1,7 +1,7 @@
 .home-page {
   display: flex;
   flex-direction: column;
-  gap: 96px;
+  gap: 40px;
 }
 
 .home-page p:not(.hero-subtitle) {
@@ -48,60 +48,12 @@
 
 .hero-description {
   max-width: 650px;
-  margin-top: 32px;
+  margin-top: 24px;
 }
 
 .hero-supporting-text {
   max-width: 620px;
-  margin-top: 24px;
-}
-
-.primary-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 14px 22px;
-  border: 1px solid var(--color-accent);
-  border-radius: 6px;
-  color: var(--color-surface);
-  background: var(--color-accent);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-[data-theme='dark'] .primary-link {
-  color: var(--color-background);
-}
-
-.primary-link:hover {
-  filter: brightness(0.92);
-}
-
-.download-icon {
-  flex: none;
-  width: 20px;
-  height: 20px;
-}
-
-.profile-download {
-  justify-content: center;
-  width: 100%;
-  margin-top: 32px;
-}
-
-.download-copy {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.25;
-  text-align: center;
-}
-
-.download-meta {
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.8;
+  margin-top: 20px;
 }
 
 .hero-profile {
@@ -212,11 +164,21 @@
   text-transform: uppercase;
 }
 
+.architecture-overview-link {
+  display: block;
+  margin-top: 16px;
+  cursor: zoom-in;
+}
+
+.architecture-overview-link:hover {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
 .architecture-overview-image {
   display: block;
   width: 100%;
   height: auto;
-  margin-top: 16px;
 }
 
 .architecture-overview-description {
@@ -245,7 +207,7 @@
   scroll-margin-top: 112px;
 }
 
-.projects-empty-state {
+.project-card {
   margin-top: 32px;
   padding: 28px;
   border: 1px solid var(--color-border);
@@ -253,17 +215,30 @@
   background: var(--color-surface);
 }
 
-.projects-empty-state h3 {
+.project-card h3 {
   margin: 0 0 8px;
   color: var(--color-text-primary);
   font-size: 18px;
 }
 
-@media (max-width: 800px) {
-  .home-page {
-    gap: 80px;
-  }
+.project-technologies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
 
+.project-technologies li {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-secondary);
+  font-size: 14px;
+}
+
+@media (max-width: 800px) {
   .hero {
     grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
     gap: 40px;
@@ -271,10 +246,6 @@
 }
 
 @media (max-width: 767px) {
-  .home-page {
-    gap: 52px;
-  }
-
   .hero {
     grid-template-columns: 1fr;
     gap: 32px;
@@ -334,10 +305,6 @@
     justify-self: center;
   }
 
-  .profile-download {
-    margin-top: 28px;
-  }
-
   .section-heading h2 {
     font-size: 26px;
   }
@@ -347,19 +314,11 @@
     padding: 20px 16px;
   }
 
-  .architecture-overview .text-link {
-    display: inline-flex;
-    align-items: center;
-    min-width: 44px;
-    min-height: 44px;
-    text-decoration: underline;
-  }
-
   .projects-section {
     scroll-margin-top: 192px;
   }
 
-  .projects-empty-state {
+  .project-card {
     margin-top: 24px;
     padding: 22px;
   }
