@@ -8,7 +8,13 @@ type HashLinkProps = {
 }
 
 function scrollToHash(hash: string) {
-  const targetId = decodeURIComponent(hash.replace(/^#/, ''))
+  let targetId: string
+
+  try {
+    targetId = decodeURIComponent(hash.replace(/^#/, ''))
+  } catch {
+    return
+  }
   const target = document.getElementById(targetId)
 
   target?.scrollIntoView({ block: 'start' })

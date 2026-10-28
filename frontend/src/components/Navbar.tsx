@@ -13,8 +13,13 @@ function Navbar() {
 
   function toggleTheme() {
     document.documentElement.dataset.theme = nextTheme
-    localStorage.setItem('theme', nextTheme)
     setTheme(nextTheme)
+
+    try {
+      localStorage.setItem('theme', nextTheme)
+    } catch {
+      // Theme changes still work when storage is unavailable.
+    }
   }
 
   return (

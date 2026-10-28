@@ -219,6 +219,7 @@ jobs:
             "/" "/index.html"
             "/infrastructure" "/infrastructure/"
             "/projects" "/projects/"
+            # Clear cached responses for the retired Resume routes.
             "/resume" "/resume/"
           )
 
@@ -288,7 +289,7 @@ jobs:
           done < "$file_list"
 
           for path in / /infrastructure /infrastructure/ \
-            /projects /projects/ /resume /resume/; do
+            /projects /projects/; do
             verify_content "$path" dist/index.html
           done
 

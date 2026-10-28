@@ -34,9 +34,7 @@ function handler(event) {
     uri === '/infrastructure' ||
     uri === '/infrastructure/' ||
     uri === '/projects' ||
-    uri === '/projects/' ||
-    uri === '/resume' ||
-    uri === '/resume/'
+    uri === '/projects/'
   ) {
     request.uri = '/index.html';
   }

@@ -5,11 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      const savedTheme = localStorage.getItem('theme')
-      const theme =
-        savedTheme === 'light' || savedTheme === 'dark'
-          ? savedTheme
-          : 'dark'
+      let theme = 'dark'
+
+      try {
+        const savedTheme = localStorage.getItem('theme')
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          theme = savedTheme
+        }
+      } catch {
+        // Use the default theme when storage is unavailable.
+      }
 
       document.documentElement.dataset.theme = theme
     </script>

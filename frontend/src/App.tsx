@@ -1,14 +1,23 @@
-import { Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import ScrollToTop from './components/ScrollToTop'
 import Home from './pages/Home'
 import Infrastructure from './pages/Infrastructure'
-import Projects from './pages/Projects'
-import Resume from './pages/Resume'
 import './App.css'
 
 function App() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const normalizedPathname = pathname.replace(/\/+$/, '') || '/'
+    document.title =
+      normalizedPathname === '/infrastructure'
+        ? 'Infrastructure | Vladislav Gavronski'
+        : 'Vladislav Gavronski | Cloud & Platform Engineering'
+  }, [pathname])
+
   return (
     <div className="site-layout">
       <ScrollToTop />
@@ -17,8 +26,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/infrastructure" element={<Infrastructure />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/resume" element={<Resume />} />
+          <Route path="/projects" element={<Navigate to="/#projects" replace />} />
         </Routes>
       </main>
       <Footer />
